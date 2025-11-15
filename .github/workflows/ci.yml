@@ -71,4 +71,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-unsigned.apk
-          path: ./app/build/outputs/apk/release/app-unsigned.apk
+          path: ./app/build/outputs/apk/
