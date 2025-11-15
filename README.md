@@ -1,3 +1,11 @@
+## VIBE CODED FORK
+THIS FORK WILL BE HEAVILY CODED WITH AI AND FILLED WITH BUGS, SINCE I DON'T KNOW SHIT ABOUT CODING AND AM BUILDING THIS SOLELY FOR PERSONAL USE
+
+### Added Features 
+Displaying Synced lyrics through now playing music 
+
+planned: overlay, word to word, smootger animatios for the ui
+
 # SongSync
 
 A simple Android app to download lyrics (.lrc files) for songs in your music library.
