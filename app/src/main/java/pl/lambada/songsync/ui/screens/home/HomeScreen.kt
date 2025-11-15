@@ -60,6 +60,7 @@ import pl.lambada.songsync.ui.screens.home.components.SortDialog
 import pl.lambada.songsync.util.ext.BackPressHandler
 import pl.lambada.songsync.util.ext.lowercaseWithLocale
 import pl.lambada.songsync.util.ui.SearchFABBoundsTransform
+import pl.lambada.songsync.ui.LiveLyricsScreen
 
 /**
  * Composable function representing the home screen.
@@ -293,14 +294,7 @@ fun HomeScreenLoaded(
                         quickSelect = false,
                         onSelectionChanged = {},
                         onNavigateToSongRequest = {
-                            navController.navigate(
-                                LyricsFetchScreen(
-                                    songName = viewModel.playingSongTitle,
-                                    artists = viewModel.playingSongArtist,
-                                    coverUri = viewModel.playingSongAlbumArt.toString(),
-                                    filePath = viewModel.playingSongFilePath
-                                )
-                            )
+                            navController.navigate(LiveLyricsScreen)
                         },
                         song = Song(
                             title = viewModel.playingSongTitle,

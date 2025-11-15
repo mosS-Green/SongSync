@@ -19,6 +19,7 @@ import pl.lambada.songsync.ui.screens.lyricsFetch.LyricsFetchScreen
 import pl.lambada.songsync.ui.screens.lyricsFetch.LyricsFetchViewModel
 import pl.lambada.songsync.ui.screens.settings.SettingsScreen
 import pl.lambada.songsync.ui.screens.settings.SettingsViewModel
+import pl.lambada.songsync.ui.screens.live.LiveLyricsViewModel
 
 /**
  * Composable function for handling navigation within the app.
@@ -33,6 +34,10 @@ fun Navigator(
     lyricsProviderService: LyricsProviderService
 ) {
     SharedTransitionLayout {
+        val liveLyricsViewModel: LiveLyricsViewModel = viewModel {
+            LiveLyricsViewModel.Factory(lyricsProviderService, userSettingsController)
+        }
+        }
         NavHost(
             navController = navController,
             startDestination = if (userSettingsController.passedInit) ScreenHome else InitScreen,
@@ -78,6 +83,17 @@ fun Navigator(
                     navController = navController
                 )
             }
+            animatedComposable<LiveLyricsScreen> {
+                // We will create this "LiveLyricsScreen" file in the next step!
+                // It will show an error for now, that is OK.
+                //
+                LiveLyricsScreen(
+                    navController = navController,
+                    viewModel = liveLyricsViewModel,
+                    animatedVisibilityScope = this,
+                )
+            }
+        
         }
     }
 }
@@ -110,3 +126,6 @@ data class LocalSong(
 
 @Serializable
 object ScreenSettings
+
+@Serializable
+object LiveLyricsScreen
