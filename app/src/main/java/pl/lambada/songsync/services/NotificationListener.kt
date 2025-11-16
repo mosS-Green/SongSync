@@ -19,11 +19,27 @@ class NotificationListener : NotificationListenerService() {
 
     private var mediaSessionManager: MediaSessionManager? = null
     private var currentController: MediaController? = null
+    
+    // This is our single, reusable callback
+    private val mMediaControllerCallback = object : MediaController.Callback() {
+        override fun onPlaybackStateChanged(state: PlaybackState?) {
+            updatePlaybackState(state)
+        }
+
+        override fun onMetadataChanged(metadata: MediaMetadata?) {
+            updateMetadata(metadata)
+        }
+
+        override fun onSessionDestroyed() {
+            // When a session is destroyed (e.g., app closes), reset everything
+            currentController?.unregisterCallback(this)
+            currentController = null
+            MusicState.updateSong(null, null)
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
-        // This creates the "notification" that stays in your status bar
-        // so Android doesn't kill the app while it's listening.
         startForeground()
         mediaSessionManager = getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
     }
@@ -42,10 +58,9 @@ class NotificationListener : NotificationListenerService() {
         val notification = Notification.Builder(this, channelId)
             .setContentTitle("SongSync is active")
             .setContentText("Listening for music...")
-            .setSmallIcon(pl.lambada.songsync.R.drawable.ic_notification) 
+            .setSmallIcon(pl.lambada.songsync.R.drawable.ic_notification)
             .build()
 
-        // ID 101 is just a random ID for this notification
         startForeground(101, notification)
     }
 
@@ -54,24 +69,31 @@ class NotificationListener : NotificationListenerService() {
         listenToActiveSessions()
     }
 
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        currentController?.unregisterCallback(mMediaControllerCallback)
+    }
+
     private fun listenToActiveSessions() {
         try {
             val componentName = ComponentName(this, NotificationListener::class.java)
-            // Find active media sessions (like Spotify, YouTube Music, etc.)
             val controllers = mediaSessionManager?.getActiveSessions(componentName)
-            
-            // Pick the first one that is playing or ready
             val activeController = controllers?.firstOrNull()
             
             if (activeController != null) {
                 registerCallback(activeController)
             }
             
-            // Listen for changes (e.g. if you switch from Spotify to YouTube Music)
             mediaSessionManager?.addOnActiveSessionsChangedListener({ newControllers ->
                 val newController = newControllers?.firstOrNull()
                 if (newController != null) {
                     registerCallback(newController)
+                } else {
+                    // *** THIS IS THE FIX ***
+                    // Music has stopped, so disconnect from everything.
+                    currentController?.unregisterCallback(mMediaControllerCallback)
+                    currentController = null
+                    MusicState.updateSong(null, null) // This will clear the UI
                 }
             }, componentName)
             
@@ -81,32 +103,27 @@ class NotificationListener : NotificationListenerService() {
     }
 
     private fun registerCallback(controller: MediaController) {
-        // If we are already listening to this app, don't do it again
-        if (currentController?.packageName == controller.packageName) return
+        // If it's the same controller, we don't need to do anything
+        if (currentController?.sessionToken == controller.sessionToken) return
         
+        // 1. Unregister from the *old* controller
+        currentController?.unregisterCallback(mMediaControllerCallback)
+        
+        // 2. Save the *new* controller
         currentController = controller
         
-        // Immediately update with current info
+        // 3. Register on the *new* controller
+        controller.registerCallback(mMediaControllerCallback)
+        
+        // 4. Immediately update with the new song's info
         updateMetadata(controller.metadata)
         updatePlaybackState(controller.playbackState)
-
-        // Register a callback to get updates automatically
-        controller.registerCallback(object : MediaController.Callback() {
-            override fun onPlaybackStateChanged(state: PlaybackState?) {
-                updatePlaybackState(state)
-            }
-
-            override fun onMetadataChanged(metadata: MediaMetadata?) {
-                updateMetadata(metadata)
-            }
-        })
     }
     
     private fun updateMetadata(metadata: MediaMetadata?) {
         metadata?.let {
             val title = it.getString(MediaMetadata.METADATA_KEY_TITLE)
             val artist = it.getString(MediaMetadata.METADATA_KEY_ARTIST)
-            // We will use this data in Step 2
             Log.d("SongSync", "Detected Song: $title by $artist")
             MusicState.updateSong(title, artist)
         }
@@ -116,15 +133,12 @@ class NotificationListener : NotificationListenerService() {
         state?.let {
             val isPlaying = it.state == PlaybackState.STATE_PLAYING
             val position = it.position
-            // We will use this data in Step 2
             MusicState.updateState(isPlaying, position, System.currentTimeMillis(), it.playbackSpeed)
         }
     }
 }
 
 // --- THE BRIDGE ---
-// This little object acts as a bridge. The Service (above) puts data IN.
-// The UI (which we build later) will take data OUT.
 object MusicState {
     private val _currentSong = MutableStateFlow<Pair<String, String>?>(null)
     val currentSong = _currentSong.asStateFlow()
@@ -133,6 +147,8 @@ object MusicState {
     val playbackInfo = _playbackInfo.asStateFlow()
 
     fun updateSong(title: String?, artist: String?) {
+        // This is the fix: Set to null first to force collectLatest to re-fire
+        _currentSong.value = null
         if (title != null && artist != null) {
             _currentSong.value = title to artist
         }
