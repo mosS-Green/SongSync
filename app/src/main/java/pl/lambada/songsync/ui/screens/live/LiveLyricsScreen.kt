@@ -50,6 +50,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -170,18 +171,18 @@ fun LiveLyricsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Song Info Section with Art
+            // Song Info Section
             LiveSongInfo(
                 title = uiState.songTitle,
                 artist = uiState.songArtist,
                 art = uiState.coverArt
             )
 
-            Box(modifier = Modifier.weight(1f)) {
+            // *** FIX: Added fillMaxWidth() to this Box ***
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (uiState.isLoading) {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 } else if (uiState.parsedLyrics.isEmpty()) {
-                    // *** CENTERED ERROR LAYOUT ***
                     Column(
                         modifier = Modifier
                             .align(Alignment.Center)
@@ -270,7 +271,7 @@ fun LiveSongInfo(title: String, artist: String, art: Any?) {
                  Image(
                      painter = rememberAsyncImagePainter(
                          ImageRequest.Builder(LocalContext.current)
-                             .data(art) // Coil can handle Bitmap, URI, or String
+                             .data(art)
                              .crossfade(true)
                              .build()
                      ),

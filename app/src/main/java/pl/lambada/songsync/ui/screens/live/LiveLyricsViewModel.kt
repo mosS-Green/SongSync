@@ -20,7 +20,7 @@ import pl.lambada.songsync.util.Providers
 data class LiveLyricsUiState(
     val songTitle: String = "Listening for music...",
     val songArtist: String = "",
-    val coverArt: Any? = null, // Changed to Any? to support Bitmaps
+    val coverArt: Any? = null,
     val parsedLyrics: List<Pair<String, String>> = emptyList(),
     val currentLyricLine: String = "",
     val currentLyricIndex: Int = -1,
@@ -55,9 +55,9 @@ class LiveLyricsViewModel(
                     return@collectLatest
                 }
 
-                // Destructure with Any? for art
                 val (title, artist, art) = songTriple
                 
+                // New song detected: Reset everything
                 queryOffset = 0
                 _uiState.value = _uiState.value.copy(
                     lrcOffset = 0,
@@ -108,7 +108,17 @@ class LiveLyricsViewModel(
     fun forceRefreshLyrics() {
         val currentState = _uiState.value
         if (currentState.songTitle != "Listening for music...") {
-            queryOffset++
+            // *** SMART RETRY LOGIC ***
+            // If we previously failed to find the song (offset 0 failed), 
+            // incrementing to offset 1 is useless. We should Retry (keep offset 0).
+            // If we DID find lyrics but the user clicked refresh (maybe they are wrong),
+            // THEN we try the next result (increment offset).
+            if (currentState.currentLyricLine.contains("Song not found", ignoreCase = true)) {
+                queryOffset = 0
+            } else {
+                queryOffset++
+            }
+            
             fetchLyricsFor(currentState.songTitle, currentState.songArtist)
         }
     }
@@ -150,7 +160,7 @@ class LiveLyricsViewModel(
             if (songInfo == null) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    currentLyricLine = "Song not found (Offset: $queryOffset)."
+                    currentLyricLine = "Song not found."
                 )
                 return@launch
             }
