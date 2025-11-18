@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
+import android.graphics.Bitmap
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
@@ -113,11 +114,16 @@ class NotificationListener : NotificationListenerService() {
         metadata?.let {
             val title = it.getString(MediaMetadata.METADATA_KEY_TITLE)
             val artist = it.getString(MediaMetadata.METADATA_KEY_ARTIST)
+            
+            // Try to get URI first, then fall back to Bitmap
             val artUri = it.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI) 
                          ?: it.getString(MediaMetadata.METADATA_KEY_ART_URI)
             
-            Log.d("SongSync", "Detected Song: $title by $artist (Art: $artUri)")
-            MusicState.updateSong(title, artist, artUri)
+            val art: Any? = artUri ?: it.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART) 
+                         ?: it.getBitmap(MediaMetadata.METADATA_KEY_ART)
+            
+            Log.d("SongSync", "Detected Song: $title by $artist")
+            MusicState.updateSong(title, artist, art)
         }
     }
 
@@ -131,19 +137,19 @@ class NotificationListener : NotificationListenerService() {
 }
 
 // --- THE BRIDGE ---
-// Stores Title, Artist, AND ArtUri now
 object MusicState {
-    // Triple<Title, Artist, ArtUri?>
-    private val _currentSong = MutableStateFlow<Triple<String, String, String?>?>(null)
+    // Triple<Title, Artist, Art (String or Bitmap)>
+    // Changed third parameter to Any? to support Bitmaps
+    private val _currentSong = MutableStateFlow<Triple<String, String, Any?>?>(null)
     val currentSong = _currentSong.asStateFlow()
 
     private val _playbackInfo = MutableStateFlow<PlaybackInfo?>(null)
     val playbackInfo = _playbackInfo.asStateFlow()
 
-    fun updateSong(title: String?, artist: String?, artUri: String?) {
+    fun updateSong(title: String?, artist: String?, art: Any?) {
         _currentSong.value = null
         if (title != null && artist != null) {
-            _currentSong.value = Triple(title, artist, artUri)
+            _currentSong.value = Triple(title, artist, art)
         }
     }
 

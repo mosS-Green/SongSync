@@ -10,10 +10,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -26,7 +26,7 @@ import androidx.compose.material.icons.filled.Exposure
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.MusicNote // <--- ADDED THIS IMPORT
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -50,7 +50,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -109,7 +108,7 @@ fun LiveLyricsScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent
                 ),
-                title = { }, // Title is now shown in the content
+                title = { },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
@@ -171,22 +170,25 @@ fun LiveLyricsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // New Song Info Section
+            // Song Info Section with Art
             LiveSongInfo(
                 title = uiState.songTitle,
                 artist = uiState.songArtist,
-                artUri = uiState.coverArtUri
+                art = uiState.coverArt
             )
 
             Box(modifier = Modifier.weight(1f)) {
                 if (uiState.isLoading) {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 } else if (uiState.parsedLyrics.isEmpty()) {
+                    // *** CENTERED ERROR LAYOUT ***
                     Column(
                         modifier = Modifier
                             .align(Alignment.Center)
-                            .padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .padding(32.dp)
+                            .fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
                         Text(
                             text = uiState.currentLyricLine.ifEmpty { "No lyrics available." },
@@ -194,10 +196,23 @@ fun LiveLyricsScreen(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                             textAlign = TextAlign.Center
                         )
-                        if (uiState.currentLyricLine.contains("not found")) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(onClick = { showEditDialog = true }) {
-                                Text(stringResource(R.string.edit))
+                        
+                        if (uiState.currentLyricLine.contains("not found") || uiState.currentLyricLine.contains("No lyrics")) {
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedButton(onClick = { viewModel.forceRefreshLyrics() }) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(stringResource(R.string.try_again))
+                                }
+                                Button(onClick = { showEditDialog = true }) {
+                                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(stringResource(R.string.edit))
+                                }
                             }
                         }
                     }
@@ -239,7 +254,7 @@ fun LiveLyricsScreen(
 }
 
 @Composable
-fun LiveSongInfo(title: String, artist: String, artUri: String?) {
+fun LiveSongInfo(title: String, artist: String, art: Any?) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -251,11 +266,11 @@ fun LiveSongInfo(title: String, artist: String, artUri: String?) {
             color = MaterialTheme.colorScheme.surfaceContainerHighest,
             modifier = Modifier.size(64.dp)
         ) {
-            if (artUri != null) {
+            if (art != null) {
                  Image(
                      painter = rememberAsyncImagePainter(
                          ImageRequest.Builder(LocalContext.current)
-                             .data(artUri)
+                             .data(art) // Coil can handle Bitmap, URI, or String
                              .crossfade(true)
                              .build()
                      ),
@@ -264,7 +279,7 @@ fun LiveSongInfo(title: String, artist: String, artUri: String?) {
                  )
             } else {
                 Icon(
-                    imageVector = Icons.Default.MusicNote, // <--- FIXED REFERENCE
+                    imageVector = Icons.Default.MusicNote,
                     contentDescription = null,
                     modifier = Modifier.padding(16.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant

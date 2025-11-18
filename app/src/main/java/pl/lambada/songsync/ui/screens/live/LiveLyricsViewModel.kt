@@ -20,7 +20,7 @@ import pl.lambada.songsync.util.Providers
 data class LiveLyricsUiState(
     val songTitle: String = "Listening for music...",
     val songArtist: String = "",
-    val coverArtUri: String? = null, // NEW FIELD
+    val coverArt: Any? = null, // Changed to Any? to support Bitmaps
     val parsedLyrics: List<Pair<String, String>> = emptyList(),
     val currentLyricLine: String = "",
     val currentLyricIndex: Int = -1,
@@ -55,13 +55,13 @@ class LiveLyricsViewModel(
                     return@collectLatest
                 }
 
-                // Destructure the Triple (Title, Artist, ArtUri)
-                val (title, artist, artUri) = songTriple
+                // Destructure with Any? for art
+                val (title, artist, art) = songTriple
                 
                 queryOffset = 0
                 _uiState.value = _uiState.value.copy(
                     lrcOffset = 0,
-                    coverArtUri = artUri // Save the art URI
+                    coverArt = art 
                 )
                 
                 fetchLyricsFor(title, artist)
