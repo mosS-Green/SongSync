@@ -9,12 +9,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Refresh // <--- NEW IMPORT
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -27,6 +29,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -37,9 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import pl.lambada.songsync.R
-import androidx.compose.foundation.layout.height // <--- THIS WAS THE MISSING IMPORT
+import pl.lambada.songsync.ui.components.ProvidersDropdownMenu
 
-// This is the "Live Lyrics" screen (The Face)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiveLyricsScreen(
@@ -49,13 +53,14 @@ fun LiveLyricsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val listState = rememberLazyListState()
+    
+    // State for the dropdown menu
+    var expandedProviders by remember { mutableStateOf(false) }
 
-    // This part handles the auto-scrolling
     LaunchedEffect(uiState.currentLyricIndex) {
         if (uiState.currentLyricIndex > -1) {
             listState.animateScrollToItem(
                 index = uiState.currentLyricIndex,
-                // This places the highlighted item roughly in the center
                 scrollOffset = -listState.layoutInfo.viewportSize.height / 3
             )
         }
@@ -85,12 +90,31 @@ fun LiveLyricsScreen(
                         )
                     }
                 },
-                // *** THIS IS THE NEW REFRESH BUTTON ***
                 actions = {
+                    // Refresh Button
                     IconButton(onClick = { viewModel.forceRefreshLyrics() }) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = stringResource(R.string.try_again)
+                        )
+                    }
+                    
+                    // Providers Menu Button
+                    Box {
+                        IconButton(onClick = { expandedProviders = true }) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Providers"
+                            )
+                        }
+                        
+                        ProvidersDropdownMenu(
+                            expanded = expandedProviders,
+                            onDismissRequest = { expandedProviders = false },
+                            selectedProvider = viewModel.userSettingsController.selectedProvider,
+                            onProviderSelectRequest = { newProvider ->
+                                viewModel.updateProvider(newProvider)
+                            }
                         )
                     }
                 }
@@ -115,21 +139,17 @@ fun LiveLyricsScreen(
                         .padding(32.dp)
                 )
             } else {
-                // This is the scrolling list of lyrics
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Add some empty space at the top and bottom
-                    // so the first and last lines can be centered
                     item { Box(modifier = Modifier.height(300.dp)) }
 
                     itemsIndexed(uiState.parsedLyrics) { index, (time, line) ->
                         val isCurrentLine = (index == uiState.currentLyricIndex)
 
-                        // This is the component for a single line of text
                         Text(
                             text = line,
                             fontSize = if (isCurrentLine) 28.sp else 24.sp,

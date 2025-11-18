@@ -15,6 +15,7 @@ import pl.lambada.songsync.domain.model.SongInfo
 import pl.lambada.songsync.services.MusicState
 import pl.lambada.songsync.services.PlaybackInfo
 import pl.lambada.songsync.util.parseLyrics
+import pl.lambada.songsync.util.Providers
 
 data class LiveLyricsUiState(
     val songTitle: String = "Listening for music...",
@@ -29,7 +30,7 @@ data class LiveLyricsUiState(
 
 class LiveLyricsViewModel(
     private val lyricsProviderService: LyricsProviderService,
-    private val userSettingsController: UserSettingsController
+    val userSettingsController: UserSettingsController // Changed to public/accessible
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LiveLyricsUiState())
@@ -42,14 +43,13 @@ class LiveLyricsViewModel(
         // COLLECTOR 1: Handles Song Changes
         viewModelScope.launch {
             MusicState.currentSong.collectLatest { songPair ->
-                timestampUpdateJob?.cancel() // Stop the timer
+                timestampUpdateJob?.cancel()
 
                 if (songPair == null) {
-                    _uiState.value = LiveLyricsUiState() // No song, reset everything
+                    _uiState.value = LiveLyricsUiState()
                     return@collectLatest
                 }
-                
-                // When a new song is detected, fetch lyrics for it
+
                 fetchLyricsFor(songPair.first, songPair.second)
             }
         }
@@ -63,46 +63,45 @@ class LiveLyricsViewModel(
                 }
 
                 _uiState.value = _uiState.value.copy(isPlaying = playbackInfo.isPlaying)
-                timestampUpdateJob?.cancel() // Stop any previous timer loop
+                timestampUpdateJob?.cancel()
 
                 if (playbackInfo.isPlaying) {
-                    // IF PLAYING: Start a new timer loop
                     timestampUpdateJob = launch {
                         while (true) {
                             val (isPlaying, basePosition, baseTime, speed) = MusicState.playbackInfo.value ?: break
-                            if (!isPlaying) break // Stop if it gets paused
+                            if (!isPlaying) break
 
                             val timePassed = (System.currentTimeMillis() - baseTime) * speed
                             val currentPosition = basePosition + timePassed.toLong()
                             updateCurrentLyric(currentPosition)
                             
-                            delay(200) // Update 5x/sec
+                            delay(200)
                         }
                     }
                 } else {
-                    // IF PAUSED: Just update the lyric one last time
                     updateCurrentLyric(playbackInfo.position)
                 }
             }
         }
     }
 
-    // *** NEW FUNCTION ***
-    // This is the function our "Refresh" button will call
+    // Function to switch provider and refresh
+    fun updateProvider(provider: Providers) {
+        userSettingsController.updateSelectedProviders(provider)
+        forceRefreshLyrics()
+    }
+
+    // Function to manually refresh lyrics
     fun forceRefreshLyrics() {
         val currentState = _uiState.value
-        // Only refresh if there is already a song playing
         if (currentState.songTitle != "Listening for music...") {
             fetchLyricsFor(currentState.songTitle, currentState.songArtist)
         }
     }
 
-    // *** NEW HELPER FUNCTION ***
-    // We extracted the logic into its own function so we can re-use it.
     private fun fetchLyricsFor(title: String, artist: String) {
-        lyricsFetchJob?.cancel() // Cancel any previous lyric search
+        lyricsFetchJob?.cancel()
 
-        // Reset the state to show loading, but keep the song title
         _uiState.value = LiveLyricsUiState(
             songTitle = title,
             songArtist = artist,
