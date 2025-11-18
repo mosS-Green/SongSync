@@ -10,10 +10,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Exposure
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.MusicNote // <--- ADDED THIS IMPORT
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -263,7 +264,7 @@ fun LiveSongInfo(title: String, artist: String, artUri: String?) {
                  )
             } else {
                 Icon(
-                    imageVector = pl.lambada.songsync.ui.screens.lyricsFetch.components.Icons.Filled.MusicNote, // Using MusicNote as placeholder if available or just generic
+                    imageVector = Icons.Default.MusicNote, // <--- FIXED REFERENCE
                     contentDescription = null,
                     modifier = Modifier.padding(16.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -291,14 +292,6 @@ fun LiveSongInfo(title: String, artist: String, artUri: String?) {
         }
     }
 }
-
-// Just a helper for the icon above since I can't import from components easily
-object Icons {
-    object Filled {
-        val MusicNote = androidx.compose.material.icons.Icons.Filled.MusicNote
-    }
-}
-
 
 @Composable
 fun EditQueryDialog(
