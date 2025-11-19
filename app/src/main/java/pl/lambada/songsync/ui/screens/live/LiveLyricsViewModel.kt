@@ -45,11 +45,9 @@ class LiveLyricsViewModel(
 
     init {
         // COLLECTOR 1: Handles Song Changes
+        // Responsible ONLY for fetching lyrics. Does NOT touch the timer.
         viewModelScope.launch {
             MusicState.currentSong.collectLatest { songTriple ->
-                // When song changes, we DO want to stop the old timer immediately
-                timestampUpdateJob?.cancel()
-
                 if (songTriple == null) {
                     _uiState.value = LiveLyricsUiState()
                     queryOffset = 0
@@ -69,6 +67,7 @@ class LiveLyricsViewModel(
         }
 
         // COLLECTOR 2: Handles Play/Pause/Time
+        // Responsible ONLY for the timer loop.
         viewModelScope.launch {
             MusicState.playbackInfo.collect { playbackInfo ->
                 if (playbackInfo == null) {
@@ -79,15 +78,13 @@ class LiveLyricsViewModel(
                 _uiState.value = _uiState.value.copy(isPlaying = playbackInfo.isPlaying)
 
                 if (playbackInfo.isPlaying) {
-                    // *** FIX FOR BUG #1 ***
-                    // Only start the job if it's not already running.
-                    // If it IS running, we let it continue. The loop inside reads 
-                    // MusicState.playbackInfo.value directly, so it will pick up 
-                    // the new timestamp/position automatically in the next iteration.
+                    // If playing, ensure the timer is running.
+                    // We do NOT cancel it if it's already running; we just let it loop.
+                    // The loop reads the *latest* MusicState value on every tick, so it self-corrects.
                     if (timestampUpdateJob == null || timestampUpdateJob?.isActive == false) {
                         timestampUpdateJob = launch {
                             while (true) {
-                                // Read the LATEST info directly from the StateFlow
+                                // Read LATEST info directly from source
                                 val currentInfo = MusicState.playbackInfo.value
                                 
                                 if (currentInfo == null || !currentInfo.isPlaying) break
@@ -97,12 +94,13 @@ class LiveLyricsViewModel(
                                 val currentPosition = basePosition + timePassed.toLong()
                                 
                                 updateCurrentLyric(currentPosition)
+                                
                                 delay(200) // Update 5x per second
                             }
                         }
                     }
                 } else {
-                    // If paused, cancel the loop and update one last time to snap to exact position
+                    // If paused, stop the loop and snap to the exact position
                     timestampUpdateJob?.cancel()
                     updateCurrentLyric(playbackInfo.position)
                 }
@@ -135,16 +133,16 @@ class LiveLyricsViewModel(
 
     fun updateLrcOffset(offset: Int) {
         _uiState.value = _uiState.value.copy(lrcOffset = offset)
-        // Force an immediate update so the user sees the result instantly
+        
+        // Force immediate update
         MusicState.playbackInfo.value?.let {
-            // We calculate effective position based on whether it's playing or not
-            val currentPos = if (it.isPlaying) {
+             val currentPos = if (it.isPlaying) {
                  val timePassed = (System.currentTimeMillis() - it.timestamp) * it.speed
                  it.position + timePassed.toLong()
-            } else {
-                it.position
-            }
-            updateCurrentLyric(currentPos)
+             } else {
+                 it.position
+             }
+             updateCurrentLyric(currentPos)
         }
     }
 

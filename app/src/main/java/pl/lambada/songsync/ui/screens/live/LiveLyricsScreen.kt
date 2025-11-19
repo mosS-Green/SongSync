@@ -150,7 +150,7 @@ fun LiveLyricsScreen(
                 }
             )
         },
-        // *** MOVED OFFSET BAR FROM HERE TO MAIN CONTENT ***
+        // BottomBar removed to allow floating
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -168,6 +168,7 @@ fun LiveLyricsScreen(
                 if (uiState.isLoading) {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 } else if (uiState.parsedLyrics.isEmpty()) {
+                    // Centered Error Message
                     Column(
                         modifier = Modifier
                             .align(Alignment.Center)
@@ -235,7 +236,7 @@ fun LiveLyricsScreen(
                     }
                 }
                 
-                // *** FLOATING OFFSET BAR ***
+                // Floating Offset Bar (Visible only when lyrics exist)
                 if (uiState.parsedLyrics.isNotEmpty()) {
                     Box(
                          modifier = Modifier
