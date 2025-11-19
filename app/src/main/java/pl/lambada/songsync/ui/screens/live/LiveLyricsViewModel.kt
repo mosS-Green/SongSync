@@ -16,6 +16,7 @@ import pl.lambada.songsync.services.MusicState
 import pl.lambada.songsync.services.PlaybackInfo
 import pl.lambada.songsync.util.parseLyrics
 import pl.lambada.songsync.util.Providers
+import java.util.regex.Pattern
 
 data class LiveLyricsUiState(
     val songTitle: String = "Listening for music...",
@@ -45,9 +46,11 @@ class LiveLyricsViewModel(
 
     init {
         // COLLECTOR 1: Handles Song Changes
-        // Responsible ONLY for fetching lyrics. Does NOT touch the timer.
         viewModelScope.launch {
             MusicState.currentSong.collectLatest { songTriple ->
+                // *** BUG FIX: REMOVED timestampUpdateJob?.cancel() ***
+                // We strictly let the PlaybackInfo collector manage the timer.
+                
                 if (songTriple == null) {
                     _uiState.value = LiveLyricsUiState()
                     queryOffset = 0
@@ -56,18 +59,19 @@ class LiveLyricsViewModel(
 
                 val (title, artist, art) = songTriple
                 
-                queryOffset = 0
-                _uiState.value = _uiState.value.copy(
-                    lrcOffset = 0,
-                    coverArt = art 
-                )
-                
-                fetchLyricsFor(title, artist)
+                // Only update if the song actually changed
+                if (title != _uiState.value.songTitle || artist != _uiState.value.songArtist) {
+                    queryOffset = 0
+                    _uiState.value = _uiState.value.copy(
+                        lrcOffset = 0,
+                        coverArt = art 
+                    )
+                    fetchLyricsFor(title, artist)
+                }
             }
         }
 
         // COLLECTOR 2: Handles Play/Pause/Time
-        // Responsible ONLY for the timer loop.
         viewModelScope.launch {
             MusicState.playbackInfo.collect { playbackInfo ->
                 if (playbackInfo == null) {
@@ -79,14 +83,10 @@ class LiveLyricsViewModel(
 
                 if (playbackInfo.isPlaying) {
                     // If playing, ensure the timer is running.
-                    // We do NOT cancel it if it's already running; we just let it loop.
-                    // The loop reads the *latest* MusicState value on every tick, so it self-corrects.
                     if (timestampUpdateJob == null || timestampUpdateJob?.isActive == false) {
                         timestampUpdateJob = launch {
                             while (true) {
-                                // Read LATEST info directly from source
                                 val currentInfo = MusicState.playbackInfo.value
-                                
                                 if (currentInfo == null || !currentInfo.isPlaying) break
 
                                 val (isPlaying, basePosition, baseTime, speed) = currentInfo
@@ -94,13 +94,11 @@ class LiveLyricsViewModel(
                                 val currentPosition = basePosition + timePassed.toLong()
                                 
                                 updateCurrentLyric(currentPosition)
-                                
-                                delay(200) // Update 5x per second
+                                delay(200)
                             }
                         }
                     }
                 } else {
-                    // If paused, stop the loop and snap to the exact position
                     timestampUpdateJob?.cancel()
                     updateCurrentLyric(playbackInfo.position)
                 }
@@ -117,6 +115,8 @@ class LiveLyricsViewModel(
     fun forceRefreshLyrics() {
         val currentState = _uiState.value
         if (currentState.songTitle != "Listening for music...") {
+            // If we previously failed (Song not found), keep offset 0 and try again.
+            // If we succeeded but user wants another version, increment offset.
             if (currentState.currentLyricLine.contains("Song not found", ignoreCase = true)) {
                 queryOffset = 0
             } else {
@@ -133,8 +133,6 @@ class LiveLyricsViewModel(
 
     fun updateLrcOffset(offset: Int) {
         _uiState.value = _uiState.value.copy(lrcOffset = offset)
-        
-        // Force immediate update
         MusicState.playbackInfo.value?.let {
              val currentPos = if (it.isPlaying) {
                  val timePassed = (System.currentTimeMillis() - it.timestamp) * it.speed
@@ -146,64 +144,112 @@ class LiveLyricsViewModel(
         }
     }
 
-    private fun fetchLyricsFor(title: String, artist: String) {
+    private fun fetchLyricsFor(originalTitle: String, originalArtist: String) {
         lyricsFetchJob?.cancel()
 
         _uiState.value = _uiState.value.copy(
-            songTitle = title,
-            songArtist = artist,
+            songTitle = originalTitle,
+            songArtist = originalArtist,
             isLoading = true,
             parsedLyrics = emptyList(),
             currentLyricLine = ""
         )
 
         lyricsFetchJob = viewModelScope.launch {
-            val songInfo = try {
-                lyricsProviderService.getSongInfo(
-                    query = SongInfo(title, artist),
-                    offset = queryOffset,
-                    provider = userSettingsController.selectedProvider
-                )
-            } catch (e: Exception) {
-                null
+            // *** SMART SEARCH STRATEGY ***
+            // We create a list of "queries" to try in order.
+            val queriesToTry = mutableListOf<Pair<String, String>>()
+            
+            // 1. Try the Exact Original
+            queriesToTry.add(originalTitle to originalArtist)
+            
+            // 2. Try "Cleaned" version (removes "Official Video", "(Lyrics)", etc.)
+            val cleanedTitle = cleanText(originalTitle)
+            val cleanedArtist = cleanText(originalArtist) // Removes "feat."
+            if (cleanedTitle != originalTitle || cleanedArtist != originalArtist) {
+                queriesToTry.add(cleanedTitle to cleanedArtist)
             }
 
-            if (songInfo == null) {
+            // 3. Try "Super Clean" (removes everything in brackets/parentheses)
+            val superCleanTitle = superCleanText(originalTitle)
+            if (superCleanTitle != cleanedTitle && superCleanTitle.isNotBlank()) {
+                queriesToTry.add(superCleanTitle to cleanedArtist)
+            }
+
+            var success = false
+            for ((title, artist) in queriesToTry) {
+                // If we are paging (offset > 0), only use the first (best) query strategy
+                // to avoid weird behavior where page 2 implies a different search term.
+                if (queryOffset > 0 && (title != queriesToTry.first().first)) continue
+
+                if (tryFetchLyrics(title, artist)) {
+                    success = true
+                    break // Stop as soon as we find something!
+                }
+            }
+
+            if (!success) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     currentLyricLine = "Song not found."
                 )
-                return@launch
             }
+        }
+    }
 
-            val lyricsString = try {
-                lyricsProviderService.getSyncedLyrics(
-                    songInfo.songName ?: title, 
-                    songInfo.artistName ?: artist,
-                    userSettingsController.selectedProvider,
-                    userSettingsController.includeTranslation,
-                    userSettingsController.includeRomanization,
-                    userSettingsController.multiPersonWordByWord,
-                    userSettingsController.unsyncedFallbackMusixmatch
-                )
-            } catch (e: Exception) {
-                null
-            }
+    // Helper to try a single query
+    private suspend fun tryFetchLyrics(title: String, artist: String): Boolean {
+        try {
+            val songInfo = lyricsProviderService.getSongInfo(
+                query = SongInfo(title, artist),
+                offset = queryOffset,
+                provider = userSettingsController.selectedProvider
+            ) ?: return false
 
-            if (lyricsString == null) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    currentLyricLine = "No lyrics found."
-                )
-                return@launch
-            }
+            val lyricsString = lyricsProviderService.getSyncedLyrics(
+                songInfo.songName ?: title, 
+                songInfo.artistName ?: artist,
+                userSettingsController.selectedProvider,
+                userSettingsController.includeTranslation,
+                userSettingsController.includeRomanization,
+                userSettingsController.multiPersonWordByWord,
+                userSettingsController.unsyncedFallbackMusixmatch
+            ) ?: return false
 
             val parsedLyrics = parseLyrics(lyricsString)
+            if (parsedLyrics.isEmpty()) return false
+
             _uiState.value = _uiState.value.copy(
                 isLoading = false,
                 parsedLyrics = parsedLyrics
             )
+            return true
+        } catch (e: Exception) {
+            return false
         }
+    }
+    
+    // *** TEXT CLEANING UTILITIES ***
+    
+    // Removes specific "junk" phrases common in music videos
+    private fun cleanText(input: String): String {
+        var text = input
+        // Remove "Official Video", "Lyrics", "Audio", "Visualizer", "HQ", "HD" in brackets/parens
+        val junkRegex = Pattern.compile("(?i)[(\\[](?:official|video|lyrics|visualizer|audio|hd|hq|remastered|live).*?[)\\]]")
+        text = junkRegex.matcher(text).replaceAll("").trim()
+        
+        // Remove "feat." or "ft." and the artist names after it (often ruins title search)
+        val featRegex = Pattern.compile("(?i)\\s(feat\\.?|ft\\.?|featuring)\\s.*")
+        text = featRegex.matcher(text).replaceAll("").trim()
+        
+        return text
+    }
+
+    // Aggressively removes EVERYTHING in brackets or parentheses
+    private fun superCleanText(input: String): String {
+        // Remove anything between () or []
+        val bracketRegex = Pattern.compile("[(\\[].*?[)\\]]")
+        return bracketRegex.matcher(input).replaceAll("").trim()
     }
 
     private fun updateCurrentLyric(currentPosition: Long) {
