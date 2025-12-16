@@ -42,6 +42,10 @@ import pl.lambada.songsync.util.ext.getVersion
 /**
  * Composable function for AboutScreen component.
  */
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -79,7 +83,27 @@ fun SettingsScreen(
                     label = "Always On Music (AOD)",
                     description = "Show minimal ambient screen when device is locked during playback.",
                     selected = userSettingsController.enableAOD,
-                    onClick = { userSettingsController.updateEnableAOD(!userSettingsController.enableAOD) }
+                    onClick = {
+                        val newState = !userSettingsController.enableAOD
+                        if (newState && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            if (!Settings.canDrawOverlays(context)) {
+                                val intent = Intent(
+                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    Uri.parse("package:${context.packageName}")
+                                )
+                                context.startActivity(intent)
+                            }
+                        }
+                        userSettingsController.updateEnableAOD(newState)
+                    }
+                )
+            }
+            item {
+                pl.lambada.songsync.ui.components.SwitchItem(
+                    label = "Allow Local File Access",
+                    description = "Allow the app to access local storage for identifying songs. Restart required if changing from Off to On.",
+                    selected = userSettingsController.localFileAccessEnabled,
+                    onClick = { userSettingsController.updateLocalFileAccessEnabled(!userSettingsController.localFileAccessEnabled) }
                 )
             }
             item {

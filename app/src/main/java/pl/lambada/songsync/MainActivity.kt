@@ -104,6 +104,9 @@ class MainActivity : ComponentActivity() {
 private fun MainActivity.CheckForPermissions(
     userSettingsController: UserSettingsController
 ) {
+    // Only check if local file access is ENABLED
+    if (!userSettingsController.localFileAccessEnabled) return
+
     if (Build.VERSION.SDK_INT > Build.VERSION_CODES.R) {
         if (!Environment.isExternalStorageManager()) {
             userSettingsController.updatePassedInit(false)
