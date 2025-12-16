@@ -186,7 +186,5 @@ private val showPathKey = booleanPreferencesKey("show_path")
 private val sortOrderKey = stringPreferencesKey("sort_order")
 private val sortByKey = stringPreferencesKey("sort_by")
 private val directlyModifyTimestampsKey = booleanPreferencesKey("directly_modify_timestamps")
-private val directlyModifyTimestampsKey = booleanPreferencesKey("directly_modify_timestamps")
 private val enableAODKey = booleanPreferencesKey("enable_aod")
 private val localFileAccessEnabledKey = booleanPreferencesKey("local_file_access_enabled")
-```
