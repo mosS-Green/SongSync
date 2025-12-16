@@ -61,6 +61,9 @@ class UserSettingsController(private val dataStore: DataStore<Preferences>) {
     var directlyModifyTimestamps by mutableStateOf(dataStore.get(directlyModifyTimestampsKey, false))
         private set
 
+    var enableAOD by mutableStateOf(dataStore.get(enableAODKey, false))
+        private set
+
     var sortOrder by mutableStateOf(
         SortOrders.entries
             .find { it.queryName == dataStore.get(sortOrderKey, SortOrders.ASCENDING.queryName) }!!
@@ -143,6 +146,11 @@ class UserSettingsController(private val dataStore: DataStore<Preferences>) {
         directlyModifyTimestamps = to
     }
 
+    fun updateEnableAOD(to: Boolean) {
+        dataStore.set(enableAODKey, to)
+        enableAOD = to
+    }
+
     fun updateSortOrder(to: SortOrders) {
         dataStore.set(sortOrderKey, to.queryName)
         sortOrder = to
@@ -170,3 +178,4 @@ private val showPathKey = booleanPreferencesKey("show_path")
 private val sortOrderKey = stringPreferencesKey("sort_order")
 private val sortByKey = stringPreferencesKey("sort_by")
 private val directlyModifyTimestampsKey = booleanPreferencesKey("directly_modify_timestamps")
+private val enableAODKey = booleanPreferencesKey("enable_aod")

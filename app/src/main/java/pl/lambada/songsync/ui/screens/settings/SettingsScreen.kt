@@ -75,6 +75,14 @@ fun SettingsScreen(
                 )
             }
             item {
+                pl.lambada.songsync.ui.components.SwitchItem(
+                    label = "Always On Music (AOD)",
+                    description = "Show minimal ambient screen when device is locked during playback.",
+                    selected = userSettingsController.enableAOD,
+                    onClick = { userSettingsController.updateEnableAOD(!userSettingsController.enableAOD) }
+                )
+            }
+            item {
                 MarqueeSwitch(
                     selected = userSettingsController.disableMarquee,
                     onToggle = { userSettingsController.updateDisableMarquee(it) }
