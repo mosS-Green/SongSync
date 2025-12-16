@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
@@ -299,13 +300,13 @@ fun AmbientGradientBackground(art: Any?) {
                 .graphicsLayer { 
                     alpha = 0.4f 
                     // RenderEffect for A12+ would be great here
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                        renderEffect = androidx.compose.ui.graphics.asComposeRenderEffect(
-                            android.graphics.RenderEffect.createBlurEffect(
-                                100f, 100f, android.graphics.Shader.TileMode.MIRROR
-                            )
-                        )
-                    }
+                    // if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    //     renderEffect = androidx.compose.ui.graphics.asComposeRenderEffect(
+                    //         android.graphics.RenderEffect.createBlurEffect(
+                    //             100f, 100f, android.graphics.Shader.TileMode.MIRROR
+                    //         )
+                    //     )
+                    // }
                 }
         )
     }
